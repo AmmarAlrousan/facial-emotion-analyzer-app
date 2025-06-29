@@ -1,0 +1,13 @@
+# Python virtual environment directories
+venv/
+venv_deploy/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Logs and other generated files
+*.log
+.env/
+.vscode/
+.DS_Store # macOS specific

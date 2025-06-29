@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facial Emotion Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Facial Emotion Analyzer</h1>
+        <div class="input-section">
+            <input type="file" id="imageUpload" accept="image/*">
+            <button id="analyzeButton">Analyze Image</button>
+            <button id="useWebcamButton">Use Webcam</button>
+        </div>
+
+        <div class="webcam-section" style="display: none;">
+            <video id="webcamVideo" autoplay playsinline></video>
+            <button id="captureButton">Capture & Analyze</button>
+        </div>
+
+        <div class="result-section">
+            <h2>Result:</h2>
+            <img id="previewImage" src="#" alt="Image Preview" style="display: none;">
+            <p id="emotionResult">Upload an image or use your webcam to analyze emotions.</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
