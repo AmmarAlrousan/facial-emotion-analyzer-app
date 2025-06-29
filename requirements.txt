@@ -142,8 +142,8 @@ termcolor==2.4.0
 tokenizers==0.21.1
 tomlkit==0.13.2
 torch==2.5.1
-torchaudio==2.5.1+cpu
-torchvision==0.20.1+cpu
+torchaudio==2.5.1
+torchvision==0.20.1
 tornado==6.2
 tqdm==4.66.1
 traitlets==5.9.0
