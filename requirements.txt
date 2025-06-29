@@ -135,7 +135,7 @@ stack-data==0.6.2
 starlette==0.46.2
 sympy==1.13.1
 tensorboard==2.10.0
-tensorboard-data-server==0.7.2
+tensorboard-data-server==0.6.0
 tensorflow==2.10.0
 tensorflow-estimator==2.10.0 # **CHANGED**
 tensorflow-io-gcs-filesystem==0.31.0
