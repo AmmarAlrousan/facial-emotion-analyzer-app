@@ -39,7 +39,7 @@ google-auth==2.26.2
 google-auth-oauthlib==1.2.0
 google-pasta==0.2.0
 googlesearch-python==1.2.3
-gradio==5.27.1
+gradio==4.44.4
 gradio_client==1.9.1
 groovy==0.1.2
 grpcio==1.60.0
