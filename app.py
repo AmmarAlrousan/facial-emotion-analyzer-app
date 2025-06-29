@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template, request, jsonify
-from tensorflow.keras.models import load_model
+import tensorflow as tf # <-- CHANGED: Import tensorflow for TFLite Interpreter
 import cv2
 import numpy as np
 import base64
@@ -9,19 +9,30 @@ app = Flask(__name__)
 
 # --- IMPORTANT: CONFIGURE THESE ---
 # Make sure this path is correct relative to app.py
-# Make sure this path is correct relative to app.py
-MODEL_PATH = os.path.join('saved_model', 'my_emotion_model.h5')
+MODEL_PATH = os.path.join('saved_model', 'my_emotion_model.tflite')
 # Make sure this order matches the output classes of your trained model
-EMOTION_LABELS = ['Angry', 'Fear', 'Happy', 'Neutral', 'Sad', 'Suprise'] 
+EMOTION_LABELS = ['Angry', 'Fear', 'Happy', 'Neutral', 'Sad', 'Suprise']
 # --- END CONFIGURATION ---
 
-# Load the model once when the app starts
+# Initialize interpreter and details globally, outside of try-except for cleaner access
+interpreter = None
+input_details = None
+output_details = None
+
+# Load the TFLite model once when the app starts
 try:
-    model = load_model(MODEL_PATH)
-    print("Model loaded successfully!")
+    interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+    interpreter.allocate_tensors()
+
+    # Get input and output details
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    print("TFLite Model loaded successfully!")
+    # No need to assign interpreter to 'model' if you use 'interpreter' directly below
 except Exception as e:
-    print(f"Error loading model: {e}")
-    model = None # Set model to None if loading fails
+    print(f"Error loading TFLite model: {e}")
+    # interpreter, input_details, output_details remain None if loading fails
 
 @app.route('/')
 def index():
@@ -31,7 +42,8 @@ def index():
 @app.route('/analyze_image', methods=['POST'])
 def analyze_image():
     """Endpoint to analyze an uploaded image or webcam frame."""
-    if model is None:
+    # Check if the interpreter was loaded successfully
+    if interpreter is None:
         return jsonify({"error": "Model not loaded. Please check server logs."}), 500
 
     data = request.get_json()
@@ -60,8 +72,24 @@ def analyze_image():
         # Reshape for model input (batch_size, height, width, channels)
         # If your model expects a single grayscale channel (common for emotion detection):
         input_img = np.expand_dims(normalized_img, axis=-1) # Add channel dimension
-        input_img = np.expand_dims(input_img, axis=0)      # Add batch dimension
+        input_img = np.expand_dims(input_img, axis=0)       # Add batch dimension
 
+        # Ensure the input_img has the correct data type for the TFLite model
+        # Get expected input type from input_details
+        input_dtype = input_details[0]['dtype']
+        input_img = input_img.astype(input_dtype)
+
+        # --- TFLite Prediction ---
+        # Set the tensor
+        interpreter.set_tensor(input_details[0]['index'], input_img)
+
+        # Run inference
+        interpreter.invoke()
+
+        # Get the output tensor
+        predictions = interpreter.get_tensor(output_details[0]['index'])
+
+        # --- IMPORTANT: Pre-process the image for your model ---
         # If your model expects 3 RGB channels (less common for emotion detection from grayscale):
         # input_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # Convert to RGB
         # input_img = cv2.resize(input_img, (YOUR_MODEL_WIDTH, YOUR_MODEL_HEIGHT))
@@ -71,7 +99,6 @@ def analyze_image():
 
 
         # Make prediction
-        predictions = model.predict(input_img)
         emotion_index = np.argmax(predictions[0])
         predicted_emotion = EMOTION_LABELS[emotion_index]
 
