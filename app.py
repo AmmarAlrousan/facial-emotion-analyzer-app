@@ -10,7 +10,7 @@ app = Flask(__name__)
 # --- IMPORTANT: CONFIGURE THESE ---
 # Make sure this path is correct relative to app.py
 # Make sure this path is correct relative to app.py
-MODEL_PATH = 'saved_model/my_emotion_model.h5'
+MODEL_PATH = os.path.join('saved_model', 'my_emotion_model.h5')
 # Make sure this order matches the output classes of your trained model
 EMOTION_LABELS = ['Angry', 'Fear', 'Happy', 'Neutral', 'Sad', 'Suprise'] 
 # --- END CONFIGURATION ---
