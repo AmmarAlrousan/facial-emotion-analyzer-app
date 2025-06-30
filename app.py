@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template, request, jsonify
-import tensorflow as tf # <-- CHANGED: Import tensorflow for TFLite Interpreter
+import tensorflow as tf
 import cv2
 import numpy as np
 import base64
@@ -10,14 +10,23 @@ app = Flask(__name__)
 # --- IMPORTANT: CONFIGURE THESE ---
 # Make sure this path is correct relative to app.py
 MODEL_PATH = os.path.join('saved_model', 'my_emotion_model.tflite')
-# Make sure this order matches the output classes of your trained model
-EMOTION_LABELS = ['Angry', 'Fear', 'Happy', 'Neutral', 'Sad', 'Suprise']
+
+# --- VERY IMPORTANT: Update EMOTION_LABELS ---
+# Based on our troubleshooting, your model outputs 3 classes.
+# You MUST replace these with the actual 3 emotion labels your friend's model was trained on.
+# Examples might be: ['Happy', 'Sad', 'Neutral'], or ['Positive', 'Negative', 'Neutral']
+EMOTION_LABELS = ['Class_1', 'Class_2', 'Class_3'] # <--- *** UPDATE THESE 3 LABELS ***
+
+# --- Model Input Configuration (Derived from original training code) ---
+MODEL_INPUT_SIZE = (140, 140) # Model expects 140x140 images
+MODEL_INPUT_CHANNELS = 3 # Xception base expects 3 color channels (RGB/BGR)
 # --- END CONFIGURATION ---
 
-# Initialize interpreter and details globally, outside of try-except for cleaner access
+# Initialize interpreter and details globally
 interpreter = None
 input_details = None
 output_details = None
+model_loaded_successfully = False # Flag to track model loading status
 
 # Load the TFLite model once when the app starts
 try:
@@ -27,12 +36,20 @@ try:
     # Get input and output details
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
+    
+    # Optional: Verify expected input shape from the loaded TFLite model
+    expected_input_shape_from_tflite = input_details[0]['shape']
+    print(f"TFLite Model loaded successfully! Expected input shape from TFLite: {expected_input_shape_from_tflite}")
 
-    print("TFLite Model loaded successfully!")
-    # No need to assign interpreter to 'model' if you use 'interpreter' directly below
+    # You can add a check to ensure it matches your constant for safety
+    if (expected_input_shape_from_tflite[1], expected_input_shape_from_tflite[2]) != MODEL_INPUT_SIZE or \
+       expected_input_shape_from_tflite[3] != MODEL_INPUT_CHANNELS:
+        print(f"WARNING: Model input shape mismatch! Expected {MODEL_INPUT_SIZE + (MODEL_INPUT_CHANNELS,)}, but TFLite model expects {expected_input_shape_from_tflite[1:]}. This might cause errors.")
+
+    model_loaded_successfully = True
 except Exception as e:
     print(f"Error loading TFLite model: {e}")
-    # interpreter, input_details, output_details remain None if loading fails
+    model_loaded_successfully = False
 
 @app.route('/')
 def index():
@@ -42,8 +59,7 @@ def index():
 @app.route('/analyze_image', methods=['POST'])
 def analyze_image():
     """Endpoint to analyze an uploaded image or webcam frame."""
-    # Check if the interpreter was loaded successfully
-    if interpreter is None:
+    if not model_loaded_successfully:
         return jsonify({"error": "Model not loaded. Please check server logs."}), 500
 
     data = request.get_json()
@@ -57,52 +73,44 @@ def analyze_image():
     try:
         image_bytes = base64.b64decode(encoded)
         np_arr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR) # Ensure IMREAD_COLOR for 3 channels
 
         if img is None:
             return jsonify({"error": "Could not decode image"}), 400
 
         # --- IMPORTANT: Pre-process the image for your model ---
-        # Adjust these steps (grayscale, resize, normalize, reshape)
-        # to precisely match your model's input requirements (e.g., 48x48, 1 channel)
-        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        resized_img = cv2.resize(gray_img, (48, 48)) # Example: resize to 48x48 pixels
-        normalized_img = resized_img / 255.0 # Normalize pixel values to 0-1
+        # 1. Resize to 140x140 (MODEL_INPUT_SIZE)
+        resized_img = cv2.resize(img, MODEL_INPUT_SIZE) 
 
-        # Reshape for model input (batch_size, height, width, channels)
-        # If your model expects a single grayscale channel (common for emotion detection):
-        input_img = np.expand_dims(normalized_img, axis=-1) # Add channel dimension
-        input_img = np.expand_dims(input_img, axis=0)       # Add batch dimension
+        # 2. Convert to float32
+        input_img = resized_img.astype(np.float32)
 
-        # Ensure the input_img has the correct data type for the TFLite model
-        # Get expected input type from input_details
-        input_dtype = input_details[0]['dtype']
-        input_img = input_img.astype(input_dtype)
+        # 3. Normalize pixel values to -1 to 1 (as per Xception's preprocessing)
+        input_img = (input_img / 127.5) - 1 
+
+        # 4. Add batch dimension (model expects batch_size, height, width, channels)
+        input_img = np.expand_dims(input_img, axis=0) # Shape will be (1, 140, 140, 3)
 
         # --- TFLite Prediction ---
-        # Set the tensor
         interpreter.set_tensor(input_details[0]['index'], input_img)
-
-        # Run inference
         interpreter.invoke()
-
-        # Get the output tensor
         predictions = interpreter.get_tensor(output_details[0]['index'])
-
-        # --- IMPORTANT: Pre-process the image for your model ---
-        # If your model expects 3 RGB channels (less common for emotion detection from grayscale):
-        # input_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # Convert to RGB
-        # input_img = cv2.resize(input_img, (YOUR_MODEL_WIDTH, YOUR_MODEL_HEIGHT))
-        # input_img = input_img / 255.0
-        # input_img = np.expand_dims(input_img, axis=0)
-        # --- END IMPORTANT ---
-
 
         # Make prediction
         emotion_index = np.argmax(predictions[0])
-        predicted_emotion = EMOTION_LABELS[emotion_index]
+        
+        # Ensure the index is within the bounds of your EMOTION_LABELS
+        if 0 <= emotion_index < len(EMOTION_LABELS):
+            predicted_emotion = EMOTION_LABELS[emotion_index]
+        else:
+            predicted_emotion = f"Unknown (Index: {emotion_index})"
+            print(f"Warning: Predicted emotion index {emotion_index} out of bounds for EMOTION_LABELS.")
 
-        return jsonify({"emotion": predicted_emotion})
+        # Also return probabilities for debugging/more info if needed
+        return jsonify({
+            "emotion": predicted_emotion,
+            "probabilities": predictions[0].tolist()
+        })
 
     except Exception as e:
         print(f"Error processing image: {e}")
