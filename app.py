@@ -15,7 +15,7 @@ MODEL_PATH = os.path.join('saved_model', 'my_emotion_model.tflite')
 # Based on our troubleshooting, your model outputs 3 classes.
 # You MUST replace these with the actual 3 emotion labels your friend's model was trained on.
 # Examples might be: ['Happy', 'Sad', 'Neutral'], or ['Positive', 'Negative', 'Neutral']
-EMOTION_LABELS = ['Class_1', 'Class_2', 'Class_3'] # <--- *** UPDATE THESE 3 LABELS ***
+EMOTION_LABELS = ['Angry', 'Happy', 'Suprise'] # <--- *** UPDATE THESE 3 LABELS ***
 
 # --- Model Input Configuration (Derived from original training code) ---
 MODEL_INPUT_SIZE = (140, 140) # Model expects 140x140 images
